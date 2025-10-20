@@ -31,14 +31,16 @@ api.interceptors.response.use(
     if (error.response) {
       // Server responded with error
       console.error('API Error:', error.response.data);
+      console.error('Status:', error.response.status);
       
-      // Redirect to login if unauthorized
-      if (error.response.status === 401) {
-        window.location.href = '/signup';
-      }
+      // Don't auto-redirect on 401 - let pages handle it
+      // if (error.response.status === 401) {
+      //   window.location.href = '/signup';
+      // }
     } else if (error.request) {
       // Request made but no response
-      console.error('Network Error:', error.request);
+      console.error('Network Error - No response received');
+      console.error('Request:', error.request);
     } else {
       console.error('Error:', error.message);
     }
