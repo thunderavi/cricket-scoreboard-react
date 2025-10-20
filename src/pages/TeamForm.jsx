@@ -9,6 +9,15 @@ const TeamForm = () => {
   const { teamId } = useParams();
   const navigate = useNavigate();
   
+  // Debug: Log teamId to ensure it's captured
+  useEffect(() => {
+    console.log('Team ID from URL:', teamId);
+    if (!teamId) {
+      alert('No team ID provided');
+      navigate('/teams');
+    }
+  }, [teamId, navigate]);
+  
   const [team, setTeam] = useState(null);
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -148,25 +157,58 @@ const TeamForm = () => {
     setSubmitting(true);
 
     try {
+      // Debug logs
+      console.log('Form Data:', formData);
+      console.log('Team ID:', teamId);
+      console.log('Editing Player:', editingPlayer);
+      
       let photoBase64 = null;
       
       // Convert photo to base64 if new file is selected
       if (formData.photo) {
+        console.log('Converting photo to base64...');
         photoBase64 = await imageToBase64(formData.photo);
+        console.log('Photo converted successfully');
       }
 
+      // Backend expects these exact field names
+      // MongoDB uses ObjectId strings, not numbers
       const playerData = {
-        team_id: teamId,
-        player_name: formData.playerName,
+        teamId: teamId,  // Keep as string for MongoDB ObjectId
+        playerName: formData.playerName,
         position: formData.position,
-        contact: formData.contact,
-        email: formData.email,
-        description: formData.description,
+        contact: formData.contact || '',
+        email: formData.email || '',
+        description: formData.description || '',
       };
 
-      // Only include photo if new file was selected
-      if (photoBase64) {
+      // For new players, photo is required
+      if (!editingPlayer) {
+        if (!teamId) {
+          alert('Error: Team ID is missing. Please go back and select a team.');
+          setSubmitting(false);
+          return;
+        }
+        if (!photoBase64) {
+          alert('Error: Photo is required for new players.');
+          setSubmitting(false);
+          return;
+        }
         playerData.photo = photoBase64;
+        
+        console.log('Creating new player with data:', {
+          ...playerData,
+          photo: photoBase64 ? 'base64 string (hidden)' : 'null'
+        });
+      } else {
+        // For updates, only include photo if a new one was selected
+        if (photoBase64) {
+          playerData.photo = photoBase64;
+        }
+        console.log('Updating player with data:', {
+          ...playerData,
+          photo: photoBase64 ? 'base64 string (hidden)' : 'no change'
+        });
       }
 
       let response;
@@ -181,10 +223,22 @@ const TeamForm = () => {
       if (response.data.success) {
         alert(response.data.message);
         setShowModal(false);
+        setFormData({
+          playerName: '',
+          position: '',
+          contact: '',
+          email: '',
+          description: '',
+          photo: null,
+        });
+        setPhotoPreview(null);
         fetchTeamAndPlayers(); // Refresh players list
+      } else {
+        alert(response.data.message || 'Failed to save player');
       }
     } catch (error) {
       console.error('Player operation error:', error);
+      console.error('Error response:', error.response?.data);
       const message = error.response?.data?.message || 'Failed to save player';
       alert(message);
     } finally {
