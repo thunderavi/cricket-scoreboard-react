@@ -24,8 +24,6 @@ const Board = () => {
   useEffect(() => {
     console.log('🏏 Board Component Mounted');
     console.log('  - matchId from params:', matchId);
-    console.log('  - matchId type:', typeof matchId);
-    console.log('  - matchId is valid?', matchId && matchId !== 'undefined' && matchId !== 'null');
     
     if (matchId && matchId !== 'undefined' && matchId !== 'null') {
       fetchMatchData();
@@ -50,11 +48,7 @@ const Board = () => {
         console.log('✅ Match data loaded:', matchData);
         
         setMatch(matchData);
-        
-        // Initialize live score structure
         initializeLiveScore(matchData);
-        
-        // Fetch available players for current batting team
         await fetchAvailablePlayers(matchData);
       } else {
         console.error('❌ Match not found in response');
@@ -62,10 +56,6 @@ const Board = () => {
       }
     } catch (error) {
       console.error('❌ Error fetching match:', error);
-      console.error('  - Error message:', error.message);
-      console.error('  - Error response:', error.response?.data);
-      console.error('  - Status code:', error.response?.status);
-      
       setError(error.response?.data?.message || 'Failed to load match data');
     } finally {
       setLoading(false);
@@ -74,9 +64,7 @@ const Board = () => {
 
   const initializeLiveScore = (matchData) => {
     console.log('🎯 Initializing live score');
-    console.log('  - Match status:', matchData.status);
     
-    // Initialize or use existing live score
     const score = {
       currentInnings: matchData.status === 'live' ? 2 : 1,
       innings1: matchData.innings1Score || {
@@ -106,9 +94,6 @@ const Board = () => {
   const fetchAvailablePlayers = async (matchData) => {
     try {
       console.log('👥 Fetching available players');
-      console.log('  - Match data:', matchData);
-      console.log('  - battingFirst:', matchData.battingFirst);
-      console.log('  - fieldingFirst:', matchData.fieldingFirst);
       
       const currentInnings = matchData.status === 'live' ? 2 : 1;
       const battingTeamId = currentInnings === 1 ? 
@@ -125,50 +110,25 @@ const Board = () => {
       
       const response = await playersAPI.getByTeam(battingTeamId);
       
-      console.log('📦 Players API Response:', response.data);
-      
       if (response.data.success) {
         const allPlayers = response.data.players || [];
         console.log('  - Total players from API:', allPlayers.length);
-        console.log('  - All players:', allPlayers);
         
-        // Log the structure of the first player to see what fields are available
-        if (allPlayers.length > 0) {
-          console.log('  - First player structure:', allPlayers[0]);
-          console.log('  - First player keys:', Object.keys(allPlayers[0]));
-        }
-        
-        // Filter out players who have already batted
         const currentInningsData = liveScore?.[`innings${currentInnings}`];
         const completedPlayerIds = currentInningsData?.completedPlayers?.map(p => {
-          const playerId = p.player?.id || p.player?._id || p.playerId;
-          console.log('  - Completed player ID:', playerId);
-          return playerId;
+          return p.player?.id || p.player?._id || p.playerId;
         }) || [];
-        
-        console.log('  - Completed player IDs:', completedPlayerIds);
         
         const available = allPlayers.filter(p => {
           const pid = p.id || p._id;
-          const isCompleted = completedPlayerIds.includes(pid);
-          const pname = p.playerName || p.player_name || p.name || 'Unknown';
-          console.log(`  - Player ${pname} (${pid}): ${isCompleted ? '❌ Already batted' : '✅ Available'}`);
-          return !isCompleted;
+          return !completedPlayerIds.includes(pid);
         });
         
         console.log('✅ Available players for selection:', available.length);
-        console.log('  - Players:', available.map(p => p.playerName || p.player_name || p.name));
-        
         setAvailablePlayers(available);
-        
-        // If no players available and none selected, might need to end innings
-        if (available.length === 0 && !currentPlayer) {
-          console.log('⚠️ No players available and no current player - innings might need to end');
-        }
       }
     } catch (error) {
       console.error('❌ Error fetching players:', error);
-      console.error('  - Error response:', error.response?.data);
     }
   };
 
@@ -178,31 +138,20 @@ const Board = () => {
       return;
     }
 
-    console.log('🎯 Selecting Player:');
-    console.log('  - Match ID:', matchId);
-    console.log('  - Player ID:', selectedPlayerId);
-    console.log('  - Player ID type:', typeof selectedPlayerId);
+    console.log('🎯 Selecting Player:', selectedPlayerId);
 
     setProcessing(true);
     try {
-      const requestData = {
-        playerId: selectedPlayerId
-      };
-      
-      console.log('📤 Sending request:', requestData);
-      
+      const requestData = { playerId: selectedPlayerId };
       const response = await matchesAPI.selectPlayer(matchId, requestData);
 
-      console.log('📦 Select Player Response:', response.data);
-
       if (response.data.success) {
-        // FIXED: Set current player with proper structure
         const playerData = {
           id: response.data.player.id || response.data.player._id,
           playerName: response.data.player.playerName,
           position: response.data.player.position,
           photo: response.data.player.photo,
-          stats: response.data.stats || {
+          stats: {
             runs: 0,
             balls: 0,
             fours: 0,
@@ -212,19 +161,14 @@ const Board = () => {
         
         console.log('✅ Setting current player:', playerData);
         setCurrentPlayer(playerData);
-        setSelectedPlayerId(''); // Reset dropdown
+        setSelectedPlayerId('');
         alert('Player selected successfully!');
       }
     } catch (error) {
       console.error('❌ Error selecting player:', error);
-      console.error('  - Error message:', error.message);
-      console.error('  - Response data:', error.response?.data);
-      console.error('  - Status code:', error.response?.status);
-      console.error('  - Full error:', error);
-      
       const errorMsg = error.response?.data?.message || 
                        error.response?.data?.error || 
-                       'Failed to select player. Please check the console for details.';
+                       'Failed to select player';
       alert(errorMsg);
     } finally {
       setProcessing(false);
@@ -237,40 +181,65 @@ const Board = () => {
       return;
     }
 
-    console.log('🏏 Scoring runs:');
-    console.log('  - Runs:', runs);
-    console.log('  - Current player before:', currentPlayer);
+    console.log('🏏 Scoring runs:', runs);
+    console.log('  - Current player BEFORE:', JSON.stringify(currentPlayer.stats));
 
     setProcessing(true);
     try {
       const response = await matchesAPI.scoreRuns(matchId, { runs });
-
       console.log('📦 Score runs response:', response.data);
 
       if (response.data.success) {
-        // FIXED: Update both live score AND current player stats
-        setLiveScore(prev => ({
-          ...prev,
-          [`innings${prev.currentInnings}`]: response.data.teamStats
-        }));
+        const newTeamStats = response.data.teamStats;
+        console.log('  - New team stats from backend:', newTeamStats);
         
-        // CRITICAL: Update current player stats
-        setCurrentPlayer(prev => ({
-          ...prev,
-          stats: response.data.playerStats
-        }));
+        // STEP 1: Update team stats (affects all displays)
+        setLiveScore(prev => {
+          const updated = {
+            ...prev,
+            [`innings${prev.currentInnings}`]: newTeamStats
+          };
+          console.log('  ✅ LiveScore updated:', updated);
+          return updated;
+        });
         
-        console.log('✅ Updated stats:');
-        console.log('  - Team stats:', response.data.teamStats);
-        console.log('  - Player stats:', response.data.playerStats);
+        // STEP 2: Update current player stats (affects all player displays)
+        setCurrentPlayer(prev => {
+          const oldStats = prev.stats || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+          
+          const newStats = {
+            runs: oldStats.runs + runs,
+            balls: oldStats.balls + 1,
+            fours: oldStats.fours + (runs === 4 ? 1 : 0),
+            sixes: oldStats.sixes + (runs === 6 ? 1 : 0)
+          };
+          
+          console.log('  ✅ Player stats updated:');
+          console.log('    Runs:', oldStats.runs, '+', runs, '=', newStats.runs);
+          console.log('    Balls:', oldStats.balls, '+ 1 =', newStats.balls);
+          console.log('    Fours:', oldStats.fours, '+', (runs === 4 ? 1 : 0), '=', newStats.fours);
+          console.log('    Sixes:', oldStats.sixes, '+', (runs === 6 ? 1 : 0), '=', newStats.sixes);
+          
+          const updated = {
+            ...prev,
+            stats: newStats
+          };
+          
+          console.log('  ✅ Updated player object:', updated);
+          return updated;
+        });
         
-        if (runs === 4) showMessage('Boundary! +4 runs', 'success');
-        else if (runs === 6) showMessage('Six! +6 runs', 'success');
+        // Show appropriate message
+        if (runs === 4) showMessage('🏏 Boundary! +4 runs', 'success');
+        else if (runs === 6) showMessage('🚀 Six! +6 runs', 'success');
         else if (runs > 0) showMessage(`+${runs} run${runs > 1 ? 's' : ''}`, 'info');
-        else showMessage('Dot ball', 'info');
+        else showMessage('⚪ Dot ball', 'info');
+        
+        // Force re-render to ensure all displays update
+        console.log('  ✅ All states updated - UI should refresh everywhere');
       }
     } catch (error) {
-      console.error('Error scoring runs:', error);
+      console.error('❌ Error scoring runs:', error);
       showMessage('Failed to score runs', 'error');
     } finally {
       setProcessing(false);
@@ -283,7 +252,6 @@ const Board = () => {
       const response = await matchesAPI.scoreExtra(matchId, { type });
 
       if (response.data.success) {
-        // Update team stats
         setLiveScore(prev => ({
           ...prev,
           [`innings${prev.currentInnings}`]: response.data.teamStats
@@ -307,13 +275,11 @@ const Board = () => {
       const response = await matchesAPI.playerOut(matchId);
 
       if (response.data.success) {
-        // Update team stats
         setLiveScore(prev => ({
           ...prev,
           [`innings${prev.currentInnings}`]: response.data.teamStats
         }));
         
-        // Clear current player
         setCurrentPlayer(null);
         showMessage('Player is out!', 'info');
 
@@ -386,8 +352,6 @@ const Board = () => {
   };
 
   const showMessage = (message, type) => {
-    // You can implement a toast notification here
-    // For now, using console
     console.log(`${type.toUpperCase()}: ${message}`);
   };
 
@@ -444,35 +408,150 @@ const Board = () => {
     <>
       <Navbar />
 
-      {/* Match Info Bar */}
+      {/* Match Info Bar - ENHANCED WITH STATS */}
       <div style={{
         background: 'rgba(26, 26, 46, 0.95)',
         borderBottom: '1px solid rgba(252, 184, 82, 0.3)',
-        padding: '15px 0'
+        padding: '20px 0'
       }}>
         <div className="container">
-          <div className="row align-items-center">
+          {/* Team Name and Innings */}
+          <div className="row align-items-center mb-3">
             <div className="col-md-4">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <img 
                   src={currentBattingTeam?.logo} 
                   alt="Team Logo"
-                  style={{ width: '30px', height: '30px', borderRadius: '50%' }}
+                  style={{ width: '40px', height: '40px', borderRadius: '50%' }}
                 />
-                <span className="text-white">{currentBattingTeam?.name}</span>
+                <div>
+                  <h5 className="text-white mb-0">{currentBattingTeam?.name}</h5>
+                  <span className="badge bg-warning text-dark" style={{ fontSize: '11px' }}>
+                    {currentInnings === 1 ? '1st' : '2nd'} Innings
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="col-md-4 text-center">
-              <span className="badge bg-warning text-dark">
-                {currentInnings === 1 ? '1st' : '2nd'} Innings
-              </span>
-            </div>
-            <div className="col-md-4 text-end">
-              <span className="text-white">
-                {liveScore[innings].runs}/{liveScore[innings].wickets} ({calculateOvers(liveScore[innings].balls)} overs)
-              </span>
+            <div className="col-md-8">
+              {/* Main Score Display */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                alignItems: 'center',
+                gap: '30px'
+              }}>
+                {/* Total Score */}
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 700, color: '#fcb852', lineHeight: 1 }}>
+                    {liveScore[innings].runs}/{liveScore[innings].wickets}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#999' }}>
+                    ({calculateOvers(liveScore[innings].balls)} overs)
+                  </div>
+                </div>
+
+                {/* Boundaries Stats */}
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '20px',
+                  padding: '10px 20px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(252, 184, 82, 0.2)'
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#28a745' }} key={`fours-${liveScore[innings].fours}`}>
+                      {liveScore[innings].fours || 0}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#999', textTransform: 'uppercase' }}>
+                      Fours
+                    </div>
+                  </div>
+                  <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)' }}></div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#dc3545' }} key={`sixes-${liveScore[innings].sixes}`}>
+                      {liveScore[innings].sixes || 0}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#999', textTransform: 'uppercase' }}>
+                      Sixes
+                    </div>
+                  </div>
+                  <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)' }}></div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#fcb852' }}>
+                      {calculateRunRate(liveScore[innings].runs, liveScore[innings].balls)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#999', textTransform: 'uppercase' }}>
+                      Run Rate
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+
+          {/* Current Batsman Quick View */}
+          {currentPlayer && (
+            <div 
+              key={`current-player-${currentPlayer.stats?.runs}-${currentPlayer.stats?.balls}`}
+              style={{
+                background: 'rgba(139, 92, 246, 0.1)',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '10px',
+                padding: '12px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <img
+                  src={currentPlayer.photo}
+                  alt="Player"
+                  style={{ width: '35px', height: '35px', borderRadius: '50%', border: '2px solid #fcb852' }}
+                />
+                <div>
+                  <div style={{ color: '#fcb852', fontWeight: 600, fontSize: '15px' }}>
+                    {currentPlayer.playerName} *
+                  </div>
+                  <div style={{ color: '#999', fontSize: '12px' }}>
+                    {currentPlayer.position}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fcb852' }}>
+                    {currentPlayer.stats?.runs || 0}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#999' }}>RUNS</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fff' }}>
+                    {currentPlayer.stats?.balls || 0}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#999' }}>BALLS</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#28a745' }}>
+                    {currentPlayer.stats?.fours || 0}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#999' }}>4s</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#dc3545' }}>
+                    {currentPlayer.stats?.sixes || 0}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#999' }}>6s</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fcb852' }}>
+                    {calculateStrikeRate(currentPlayer.stats?.runs || 0, currentPlayer.stats?.balls || 0)}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#999' }}>S/R</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -511,11 +590,7 @@ const Board = () => {
                         <select
                           className="form-select mb-3"
                           value={selectedPlayerId}
-                          onChange={(e) => {
-                            const newPlayerId = e.target.value;
-                            console.log('🔵 Player dropdown changed:', newPlayerId);
-                            setSelectedPlayerId(newPlayerId);
-                          }}
+                          onChange={(e) => setSelectedPlayerId(e.target.value)}
                           style={{
                             background: 'rgba(0, 0, 0, 0.3)',
                             color: 'white',
@@ -526,16 +601,8 @@ const Board = () => {
                           <option value="">Choose player...</option>
                           {availablePlayers.map(player => {
                             const playerId = player.id || player._id;
-                            // FIXED: Try all possible field names for player name
                             const playerName = player.playerName || player.player_name || player.name || 'Unknown Player';
                             const position = player.position || 'Player';
-                            
-                            console.log('  - Dropdown option:', { 
-                              playerId, 
-                              playerName, 
-                              position,
-                              rawPlayer: player 
-                            });
                             
                             return (
                               <option key={playerId} value={playerId}>
@@ -574,7 +641,7 @@ const Board = () => {
                   </div>
                 )}
 
-                {/* Scoreboard - Rest of the component remains the same... */}
+                {/* Current Player Scoreboard */}
                 {currentPlayer && (
                   <div className="mb-4">
                     {/* Team Score Display */}
@@ -641,14 +708,16 @@ const Board = () => {
                       </div>
                     </div>
 
-                    {/* Current Player Card */}
-                    <div style={{
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      borderRadius: '15px',
-                      padding: '20px',
-                      marginBottom: '20px',
-                      border: '1px solid rgba(252, 184, 82, 0.2)'
-                    }}>
+                    {/* Current Player Card - WITH FOURS AND SIXES COUNT */}
+                    <div 
+                      key={`player-card-${currentPlayer.stats?.runs}-${currentPlayer.stats?.balls}`}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        borderRadius: '15px',
+                        padding: '20px',
+                        marginBottom: '20px',
+                        border: '1px solid rgba(252, 184, 82, 0.2)'
+                      }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
                         <img
                           src={currentPlayer.photo}
@@ -674,13 +743,13 @@ const Board = () => {
                           <small className="text-muted">Balls</small>
                         </div>
                         <div className="col">
-                          <div style={{ color: '#fcb852', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                          <div style={{ color: '#28a745', fontSize: '1.5rem', fontWeight: 'bold' }}>
                             {currentPlayer.stats?.fours || 0}
                           </div>
                           <small className="text-muted">4s</small>
                         </div>
                         <div className="col">
-                          <div style={{ color: '#fcb852', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                          <div style={{ color: '#dc3545', fontSize: '1.5rem', fontWeight: 'bold' }}>
                             {currentPlayer.stats?.sixes || 0}
                           </div>
                           <small className="text-muted">6s</small>
@@ -774,7 +843,6 @@ const Board = () => {
                 )}
               </>
             ) : (
-              /* Match Summary - keeping original code */
               <div style={{
                 background: 'rgba(255, 255, 255, 0.05)',
                 borderRadius: '15px',
@@ -806,7 +874,7 @@ const Board = () => {
             )}
           </div>
 
-          {/* Side Scoreboard - keeping rest of the component as is */}
+          {/* Side Scoreboard - WITH FOURS AND SIXES DISPLAY */}
           <div className="col-lg-4">
             <div style={{
               position: 'sticky',
@@ -882,17 +950,17 @@ const Board = () => {
                       Overs: <strong className="text-white">{calculateOvers(liveScore[`innings${inningsNum}`].balls)}</strong>
                     </span>
                     <span className="text-muted">
-                      4s: <strong className="text-white">{liveScore[`innings${inningsNum}`].fours}</strong>
+                      4s: <strong style={{ color: '#28a745' }}>{liveScore[`innings${inningsNum}`].fours}</strong>
                     </span>
                     <span className="text-muted">
-                      6s: <strong className="text-white">{liveScore[`innings${inningsNum}`].sixes}</strong>
+                      6s: <strong style={{ color: '#dc3545' }}>{liveScore[`innings${inningsNum}`].sixes}</strong>
                     </span>
                     <span className="text-muted">
                       R/R: <strong className="text-white">{calculateRunRate(liveScore[`innings${inningsNum}`].runs, liveScore[`innings${inningsNum}`].balls)}</strong>
                     </span>
                   </div>
 
-                  {/* Batting Scorecard */}
+                  {/* Batting Scorecard - WITH FOURS AND SIXES COLUMNS */}
                   <div>
                     <div style={{
                       display: 'grid',
@@ -916,37 +984,46 @@ const Board = () => {
                     </div>
 
                     {liveScore[`innings${inningsNum}`].completedPlayers?.length > 0 ? (
-                      liveScore[`innings${inningsNum}`].completedPlayers.map((cp, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1.2fr',
-                            gap: '8px',
-                            padding: '12px 8px',
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            borderRadius: '8px',
-                            marginBottom: '6px',
-                            fontSize: '13px'
-                          }}
-                        >
-                          <div className="text-white">{cp.player.playerName}</div>
-                          <div className="text-center text-muted">{cp.stats.runs}</div>
-                          <div className="text-center text-muted">{cp.stats.balls}</div>
-                          <div className="text-center text-muted">{cp.stats.fours}</div>
-                          <div className="text-center text-muted">{cp.stats.sixes}</div>
-                          <div className="text-center text-muted">
-                            {calculateStrikeRate(cp.stats.runs, cp.stats.balls)}
+                      liveScore[`innings${inningsNum}`].completedPlayers.map((cp, idx) => {
+                        const playerName = cp.player?.playerName || cp.player?.name || 'Unknown';
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1.2fr',
+                              gap: '8px',
+                              padding: '12px 8px',
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              borderRadius: '8px',
+                              marginBottom: '6px',
+                              fontSize: '13px'
+                            }}
+                          >
+                            <div className="text-white" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {playerName}
+                            </div>
+                            <div className="text-center text-muted">{cp.stats?.runs || 0}</div>
+                            <div className="text-center text-muted">{cp.stats?.balls || 0}</div>
+                            <div className="text-center" style={{ color: '#28a745', fontWeight: '600' }}>
+                              {cp.stats?.fours || 0}
+                            </div>
+                            <div className="text-center" style={{ color: '#dc3545', fontWeight: '600' }}>
+                              {cp.stats?.sixes || 0}
+                            </div>
+                            <div className="text-center text-muted">
+                              {calculateStrikeRate(cp.stats?.runs || 0, cp.stats?.balls || 0)}
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div style={{ textAlign: 'center', padding: '20px', color: '#888', fontStyle: 'italic' }}>
                         {inningsNum === 2 && currentInnings === 1 ? 'Not started yet' : 'No batsmen yet'}
                       </div>
                     )}
 
-                    {/* Current Batsman */}
+                    {/* Current Batsman - WITH HIGHLIGHTED FOURS AND SIXES */}
                     {currentInnings === inningsNum && currentPlayer && (
                       <div
                         style={{
@@ -961,7 +1038,7 @@ const Board = () => {
                           borderLeft: '3px solid #fcb852'
                         }}
                       >
-                        <div style={{ fontWeight: 600, color: '#fcb852' }}>
+                        <div style={{ fontWeight: 600, color: '#fcb852', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {currentPlayer.playerName} *
                         </div>
                         <div style={{ textAlign: 'center', color: '#fcb852', fontWeight: 600 }}>
@@ -970,10 +1047,10 @@ const Board = () => {
                         <div style={{ textAlign: 'center', color: '#fcb852', fontWeight: 600 }}>
                           {currentPlayer.stats?.balls || 0}
                         </div>
-                        <div style={{ textAlign: 'center', color: '#fcb852', fontWeight: 600 }}>
+                        <div style={{ textAlign: 'center', color: '#28a745', fontWeight: 700, fontSize: '14px' }}>
                           {currentPlayer.stats?.fours || 0}
                         </div>
-                        <div style={{ textAlign: 'center', color: '#fcb852', fontWeight: 600 }}>
+                        <div style={{ textAlign: 'center', color: '#dc3545', fontWeight: 700, fontSize: '14px' }}>
                           {currentPlayer.stats?.sixes || 0}
                         </div>
                         <div style={{ textAlign: 'center', color: '#fcb852', fontWeight: 600 }}>
@@ -1036,13 +1113,13 @@ const Board = () => {
                     <small className="text-muted">Balls</small>
                   </div>
                   <div className="col-3">
-                    <div style={{ color: '#fcb852', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    <div style={{ color: '#28a745', fontSize: '1.5rem', fontWeight: 'bold' }}>
                       {currentPlayer?.stats?.fours || 0}
                     </div>
                     <small className="text-muted">4s</small>
                   </div>
                   <div className="col-3">
-                    <div style={{ color: '#fcb852', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    <div style={{ color: '#dc3545', fontSize: '1.5rem', fontWeight: 'bold' }}>
                       {currentPlayer?.stats?.sixes || 0}
                     </div>
                     <small className="text-muted">6s</small>
