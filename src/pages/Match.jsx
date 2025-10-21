@@ -22,6 +22,13 @@ const Match = () => {
     fetchTeams();
   }, []);
 
+  // Debug: Log when teams are selected
+  useEffect(() => {
+    console.log('selectedTeam1 changed:', selectedTeam1);
+    console.log('selectedTeam2 changed:', selectedTeam2);
+    console.log('Should show toss?', !!(selectedTeam1 && selectedTeam2));
+  }, [selectedTeam1, selectedTeam2]);
+
   const fetchTeams = async () => {
     try {
       const response = await teamsAPI.getAll();
@@ -36,52 +43,139 @@ const Match = () => {
     }
   };
 
-  // Handle team selection
+  // ========================================
+  // IMPROVED TEAM SELECTION HANDLERS
+  // ========================================
+
   const handleTeam1Select = (e) => {
     const teamId = e.target.value;
+    
+    console.log('🔵 Team 1 Selection:');
+    console.log('  - Selected ID:', teamId);
+    console.log('  - All teams:', teams);
+    
     if (!teamId) {
       setSelectedTeam1(null);
+      setTossResult(null);
+      setCoinResult(null);
       return;
     }
     
-    const team = teams.find(t => t._id === teamId);
-    if (selectedTeam2 && selectedTeam2._id === teamId) {
-      alert('Please select different teams');
+    // Find team - try both _id and id
+    const team = teams.find(t => {
+      const teamIdentifier = t._id || t.id;
+      console.log('  - Comparing:', teamIdentifier, 'with', teamId);
+      return teamIdentifier === teamId;
+    });
+    
+    if (!team) {
+      console.error('❌ Team 1 not found!');
+      console.error('  - Looking for ID:', teamId);
+      console.error('  - Available team IDs:', teams.map(t => t._id || t.id));
+      alert('Error: Team not found. Please refresh the page.');
       e.target.value = '';
       return;
     }
-    setSelectedTeam1(team);
+
+    // CRITICAL: Ensure _id exists on the team object
+    const normalizedTeam = {
+      ...team,
+      _id: team._id || team.id
+    };
+    
+    console.log('✅ Team 1 normalized:', normalizedTeam);
+    console.log('  - _id:', normalizedTeam._id);
+    console.log('  - name:', normalizedTeam.name);
+    
+    // Check for duplicate selection
+    if (selectedTeam2) {
+      const team2Id = selectedTeam2._id || selectedTeam2.id;
+      if (team2Id === normalizedTeam._id) {
+        alert('Please select different teams');
+        e.target.value = '';
+        return;
+      }
+    }
+    
+    setSelectedTeam1(normalizedTeam);
     setTossResult(null);
+    setCoinResult(null);
   };
 
   const handleTeam2Select = (e) => {
     const teamId = e.target.value;
+    
+    console.log('🔵 Team 2 Selection:');
+    console.log('  - Selected ID:', teamId);
+    console.log('  - All teams:', teams);
+    
     if (!teamId) {
       setSelectedTeam2(null);
+      setTossResult(null);
+      setCoinResult(null);
       return;
     }
     
-    const team = teams.find(t => t._id === teamId);
-    if (selectedTeam1 && selectedTeam1._id === teamId) {
-      alert('Please select different teams');
+    // Find team - try both _id and id
+    const team = teams.find(t => {
+      const teamIdentifier = t._id || t.id;
+      console.log('  - Comparing:', teamIdentifier, 'with', teamId);
+      return teamIdentifier === teamId;
+    });
+    
+    if (!team) {
+      console.error('❌ Team 2 not found!');
+      console.error('  - Looking for ID:', teamId);
+      console.error('  - Available team IDs:', teams.map(t => t._id || t.id));
+      alert('Error: Team not found. Please refresh the page.');
       e.target.value = '';
       return;
     }
-    setSelectedTeam2(team);
+
+    // CRITICAL: Ensure _id exists on the team object
+    const normalizedTeam = {
+      ...team,
+      _id: team._id || team.id
+    };
+    
+    console.log('✅ Team 2 normalized:', normalizedTeam);
+    console.log('  - _id:', normalizedTeam._id);
+    console.log('  - name:', normalizedTeam.name);
+    
+    // Check for duplicate selection
+    if (selectedTeam1) {
+      const team1Id = selectedTeam1._id || selectedTeam1.id;
+      if (team1Id === normalizedTeam._id) {
+        alert('Please select different teams');
+        e.target.value = '';
+        return;
+      }
+    }
+    
+    setSelectedTeam2(normalizedTeam);
     setTossResult(null);
+    setCoinResult(null);
   };
 
-  // Flip coin
+  // ========================================
+  // IMPROVED FLIP COIN WITH NORMALIZATION
+  // ========================================
+
   const flipCoin = () => {
     if (!tossCall) {
       alert('Please choose Heads or Tails');
       return;
     }
 
+    console.log('🪙 Flipping Coin:');
+    console.log('  - Toss Call:', tossCall);
+    console.log('  - Toss Choice:', tossChoice);
+    console.log('  - Team 1:', selectedTeam1);
+    console.log('  - Team 2:', selectedTeam2);
+
     setCoinFlipping(true);
     setTossResult(null);
 
-    // Simulate coin flip after animation
     setTimeout(() => {
       const result = Math.random() < 0.5 ? 'heads' : 'tails';
       setCoinResult(result);
@@ -93,47 +187,126 @@ const Match = () => {
       const battingFirst = tossChoice === 'batting' ? winner : loser;
       const fieldingFirst = tossChoice === 'batting' ? loser : winner;
       
-      setTossResult({
-        coinResult: result,
-        winner: winner,
-        battingFirst: battingFirst,
-        fieldingFirst: fieldingFirst,
-        tossChoice: tossChoice
-      });
+      // CRITICAL: Ensure all team objects have _id
+      const normalizedWinner = { ...winner, _id: winner._id || winner.id };
+      const normalizedBattingFirst = { ...battingFirst, _id: battingFirst._id || battingFirst.id };
+      const normalizedFieldingFirst = { ...fieldingFirst, _id: fieldingFirst._id || fieldingFirst.id };
       
+      const tossResultData = {
+        coinResult: result,
+        winner: normalizedWinner,
+        battingFirst: normalizedBattingFirst,
+        fieldingFirst: normalizedFieldingFirst,
+        tossChoice: tossChoice
+      };
+      
+      console.log('✅ Toss Result:', tossResultData);
+      
+      setTossResult(tossResultData);
       setCoinFlipping(false);
     }, 2000);
   };
 
-  // Start match
+  // ========================================
+  // IMPROVED START MATCH WITH VALIDATION
+  // ========================================
+
   const startMatch = async () => {
+    console.log('🚀 Starting Match...');
+    
     if (!tossResult) {
       alert('Please complete the toss first');
       return;
     }
 
+    // STEP 1: Extract all required data
+    const team1Id = selectedTeam1?._id;
+    const team2Id = selectedTeam2?._id;
+    const tossWinnerId = tossResult?.winner?._id;
+    const coinResult = tossResult?.coinResult;
+    const tossChoice = tossResult?.tossChoice;
+    const battingFirstId = tossResult?.battingFirst?._id;
+    const fieldingFirstId = tossResult?.fieldingFirst?._id;
+
+    // STEP 2: Build match data object
+    const matchData = {
+      team1Id,
+      team2Id,
+      tossWinnerId,
+      coinResult,
+      tossChoice,
+      battingFirstId,
+      fieldingFirstId
+    };
+
+    // STEP 3: Log everything for debugging
+    console.log('📋 Match Data to Send:');
+    console.log('  - team1Id:', team1Id, typeof team1Id);
+    console.log('  - team2Id:', team2Id, typeof team2Id);
+    console.log('  - tossWinnerId:', tossWinnerId, typeof tossWinnerId);
+    console.log('  - coinResult:', coinResult, typeof coinResult);
+    console.log('  - tossChoice:', tossChoice, typeof tossChoice);
+    console.log('  - battingFirstId:', battingFirstId, typeof battingFirstId);
+    console.log('  - fieldingFirstId:', fieldingFirstId, typeof fieldingFirstId);
+    console.log('');
+    console.log('📦 Full Match Data Object:', matchData);
+
+    // STEP 4: Validate - check for undefined/null/empty values
+    const invalidFields = [];
+    
+    if (!team1Id) invalidFields.push('team1Id');
+    if (!team2Id) invalidFields.push('team2Id');
+    if (!tossWinnerId) invalidFields.push('tossWinnerId');
+    if (!coinResult) invalidFields.push('coinResult');
+    if (!tossChoice) invalidFields.push('tossChoice');
+    if (!battingFirstId) invalidFields.push('battingFirstId');
+    if (!fieldingFirstId) invalidFields.push('fieldingFirstId');
+
+    if (invalidFields.length > 0) {
+      console.error('❌ Validation Failed!');
+      console.error('  - Invalid fields:', invalidFields);
+      console.error('  - selectedTeam1:', selectedTeam1);
+      console.error('  - selectedTeam2:', selectedTeam2);
+      console.error('  - tossResult:', tossResult);
+      
+      alert(`Missing required data: ${invalidFields.join(', ')}\n\nPlease:\n1. Reselect both teams\n2. Redo the toss\n3. Try again`);
+      return;
+    }
+
+    // STEP 5: All validation passed, send request
+    console.log('✅ Validation Passed! Sending request...');
     setSubmitting(true);
 
     try {
-      const matchData = {
-        team1Id: selectedTeam1._id,
-        team2Id: selectedTeam2._id,
-        tossWinnerId: tossResult.winner._id,
-        coinResult: tossResult.coinResult,
-        tossChoice: tossResult.tossChoice,
-        battingFirstId: tossResult.battingFirst._id,
-        fieldingFirstId: tossResult.fieldingFirst._id
-      };
-
       const response = await matchesAPI.create(matchData);
 
+      console.log('✅ Match Created Successfully:', response.data);
+
       if (response.data.success) {
+        const createdMatchId = response.data.match._id || response.data.matchId;
+        
+        console.log('🎯 Navigating to match board:');
+        console.log('  - Match ID:', createdMatchId);
+        console.log('  - Navigation path:', `/board/${createdMatchId}`);
+        
+        if (!createdMatchId) {
+          console.error('❌ No match ID in response!');
+          console.error('  - Response data:', response.data);
+          alert('Match created but ID is missing. Please check the match from dashboard.');
+          return;
+        }
+        
         alert('Match created successfully!');
-        navigate(`/board/${response.data.match._id}`);
+        navigate(`/board/${createdMatchId}`);
       }
     } catch (error) {
-      console.error('Create match error:', error);
-      alert(error.response?.data?.message || 'Failed to create match');
+      console.error('❌ Create Match Error:', error);
+      console.error('  - Error message:', error.message);
+      console.error('  - Response data:', error.response?.data);
+      console.error('  - Status code:', error.response?.status);
+      
+      const errorMessage = error.response?.data?.message || 'Failed to create match. Please try again.';
+      alert(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -194,6 +367,7 @@ const Match = () => {
                   <select 
                     className="form-select mb-3"
                     onChange={handleTeam1Select}
+                    value={selectedTeam1?._id || ''}
                     style={{
                       background: 'rgba(0, 0, 0, 0.3)',
                       color: 'white',
@@ -202,7 +376,7 @@ const Match = () => {
                   >
                     <option value="">Choose Team 1...</option>
                     {teams.map(team => (
-                      <option key={team._id} value={team._id}>
+                      <option key={team._id || team.id} value={team._id || team.id}>
                         {team.name}
                       </option>
                     ))}
@@ -263,6 +437,7 @@ const Match = () => {
                   <select 
                     className="form-select mb-3"
                     onChange={handleTeam2Select}
+                    value={selectedTeam2?._id || ''}
                     style={{
                       background: 'rgba(0, 0, 0, 0.3)',
                       color: 'white',
@@ -271,7 +446,7 @@ const Match = () => {
                   >
                     <option value="">Choose Team 2...</option>
                     {teams.map(team => (
-                      <option key={team._id} value={team._id}>
+                      <option key={team._id || team.id} value={team._id || team.id}>
                         {team.name}
                       </option>
                     ))}
@@ -319,15 +494,34 @@ const Match = () => {
             </div>
 
             {/* Toss Section */}
-            {selectedTeam1 && selectedTeam2 && (
-              <div className="row">
+            {/* Debug Info */}
+            <div className="row mb-3">
+              <div className="col-12">
+                <div className="alert" style={{ 
+                  background: (selectedTeam1 && selectedTeam2) ? 'rgba(40, 167, 69, 0.2)' : 'rgba(255, 193, 7, 0.2)', 
+                  border: `1px solid ${(selectedTeam1 && selectedTeam2) ? 'rgba(40, 167, 69, 0.5)' : 'rgba(255, 193, 7, 0.5)'}`,
+                  padding: '15px',
+                  fontSize: '14px'
+                }}>
+                  <strong>🔍 Debug Status:</strong><br />
+                  <div className="mt-2">
+                    Team 1: {selectedTeam1 ? `✅ ${selectedTeam1.name}` : '❌ Not selected'}<br />
+                    Team 2: {selectedTeam2 ? `✅ ${selectedTeam2.name}` : '❌ Not selected'}<br />
+                    Toss Section: {(selectedTeam1 && selectedTeam2) ? '✅ Should be visible' : '❌ Hidden (select both teams)'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {selectedTeam1 && selectedTeam2 ? (
+              <div className="row" style={{ marginTop: '30px' }}>
                 <div className="col-12">
                   <div 
                     style={{
                       background: 'rgba(255, 255, 255, 0.05)',
                       borderRadius: '15px',
                       padding: '30px',
-                      border: '1px solid rgba(252, 184, 82, 0.2)',
+                      border: '2px solid #fcb852',
                       animation: 'fadeIn 0.5s ease-in'
                     }}
                   >
@@ -478,6 +672,15 @@ const Match = () => {
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="row mt-4">
+                <div className="col-12">
+                  <div className="alert alert-warning text-center" style={{ background: 'rgba(255, 193, 7, 0.1)', border: '1px solid rgba(255, 193, 7, 0.3)' }}>
+                    <i className="fas fa-info-circle me-2"></i>
+                    <strong>Please select both teams to proceed with the toss</strong>
                   </div>
                 </div>
               </div>
