@@ -25,19 +25,34 @@ const Teams = () => {
   }, []);
 
   // Fetch all teams
-  const fetchTeams = async () => {
-    try {
-      const response = await teamsAPI.getAll();
-      if (response.data.success) {
-        setTeams(response.data.teams);
-      }
-    } catch (error) {
-      console.error('Error fetching teams:', error);
-      alert('Failed to load teams');
-    } finally {
-      setLoading(false);
+const fetchTeams = async () => {
+  try {
+    console.log('🔄 Fetching teams...');
+    
+    const response = await teamsAPI.getAll();
+    
+    // DEBUG: Log the full response
+    console.log('📦 API Response:', response.data);
+    console.log('✅ Success:', response.data.success);
+    console.log('📊 Count:', response.data.count);
+    console.log('👥 Teams:', response.data.teams);
+    
+    if (response.data.success) {
+      console.log(`🎯 Setting ${response.data.teams.length} teams in state`);
+      setTeams(response.data.teams);
+    } else {
+      console.error('❌ API returned success: false');
+      setTeams([]);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error fetching teams:', error);
+    console.error('Response data:', error.response?.data);
+    alert('Failed to load teams');
+    setTeams([]); // Clear teams on error
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Handle input change
   const handleChange = (e) => {
