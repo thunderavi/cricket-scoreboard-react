@@ -6,7 +6,6 @@ import { matchesAPI, playersAPI } from '../services/api';
 const Board = () => {
   const { matchId } = useParams();
   const navigate = useNavigate();
-
   const [match, setMatch] = useState(null);
   const [liveScore, setLiveScore] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,6 +17,7 @@ const Board = () => {
   
   const [showOutModal, setShowOutModal] = useState(false);
   const [activeInningsTab, setActiveInningsTab] = useState(1);
+  const [forceUpdateKey, setForceUpdateKey] = useState(0); // ✅ Added missing state
   
   const [processing, setProcessing] = useState(false);
 
@@ -139,8 +139,8 @@ const Board = () => {
     }
 
     console.log('🎯 Selecting Player:', selectedPlayerId);
-
     setProcessing(true);
+
     try {
       const requestData = { playerId: selectedPlayerId };
       const response = await matchesAPI.selectPlayer(matchId, requestData);
@@ -183,8 +183,8 @@ const Board = () => {
 
     console.log('🏏 Scoring runs:', runs);
     console.log('  - Current player BEFORE:', JSON.stringify(currentPlayer.stats));
-
     setProcessing(true);
+
     try {
       const response = await matchesAPI.scoreRuns(matchId, { runs });
       console.log('📦 Score runs response:', response.data);
@@ -246,21 +246,67 @@ const Board = () => {
     }
   };
 
-  const handleScoreExtra = async (type) => {
+const handleScoreExtra = async (type) => {
+    if (!currentPlayer) {
+      showMessage('No player selected', 'warning');
+      return;
+    }
+
+    console.log('⚠️ Scoring extra:', type);
+    console.log('  - Current player BEFORE:', JSON.stringify(currentPlayer.stats));
     setProcessing(true);
+
     try {
       const response = await matchesAPI.scoreExtra(matchId, { type });
+      console.log('📦 Score extra response:', response.data);
 
       if (response.data.success) {
-        setLiveScore(prev => ({
-          ...prev,
-          [`innings${prev.currentInnings}`]: response.data.teamStats
-        }));
+        const newTeamStats = response.data.teamStats;
+        console.log('  - New team stats from backend:', newTeamStats);
+        
+        // STEP 1: Update team stats (affects all displays)
+        setLiveScore(prev => {
+          const updated = {
+            ...prev,
+            [`innings${prev.currentInnings}`]: newTeamStats
+          };
+          console.log('  ✅ LiveScore updated with extras:', updated);
+          return updated;
+        });
+        
+        // STEP 2: Wide/No Ball don't increment player's ball count
+        // But we create new object to trigger re-render
+        // The player's stats remain the same (which is correct for extras)
+        setCurrentPlayer(prev => {
+          // Create completely new object with deep copy of stats
+          const updated = {
+            ...prev,
+            stats: {
+              runs: prev.stats.runs,
+              balls: prev.stats.balls,
+              fours: prev.stats.fours,
+              sixes: prev.stats.sixes
+            }
+          };
+          console.log('  ✅ Player object refreshed (stats remain same for extras):', updated.stats);
+          return updated;
+        });
+        
+        // ✅ Force ALL displays to re-render by incrementing key
+        setForceUpdateKey(prev => {
+          const newKey = prev + 1;
+          console.log('  ✅ Force update key incremented:', prev, '->', newKey);
+          return newKey;
+        });
         
         showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)}! +1 run`, 'warning');
+        console.log('✅ Extra scored successfully');
+        console.log('  - Team score updated to:', newTeamStats.runs);
+        console.log('  - Player stats remain:', currentPlayer.stats);
+        console.log('  - Force update key incremented for re-render');
       }
     } catch (error) {
-      console.error('Error scoring extra:', error);
+      console.error('❌ Error scoring extra:', error);
       showMessage('Failed to score extra', 'error');
     } finally {
       setProcessing(false);
@@ -272,7 +318,11 @@ const Board = () => {
     setProcessing(true);
 
     try {
-      const response = await matchesAPI.playerOut(matchId);
+      // ✅ MUST SEND dismissalType
+      const response = await matchesAPI.playerOut(matchId, {
+        dismissalType: 'caught', // or 'bowled', 'runout', 'lbw', 'stumped'
+        fielderName: '' // optional
+      });
 
       if (response.data.success) {
         setLiveScore(prev => ({
@@ -283,6 +333,7 @@ const Board = () => {
         setCurrentPlayer(null);
         showMessage('Player is out!', 'info');
 
+        // ✅ Check if innings should end
         if (response.data.shouldEndInnings) {
           setTimeout(() => {
             if (window.confirm(`${response.data.endReason}. End innings now?`)) {
@@ -313,6 +364,7 @@ const Board = () => {
     if (!window.confirm(confirmMessage)) return;
 
     setProcessing(true);
+
     try {
       const response = await matchesAPI.endInnings(matchId);
 
@@ -407,7 +459,6 @@ const Board = () => {
   return (
     <>
       <Navbar />
-
       {/* Match Info Bar - ENHANCED WITH STATS */}
       <div style={{
         background: 'rgba(26, 26, 46, 0.95)',
@@ -432,6 +483,7 @@ const Board = () => {
                 </div>
               </div>
             </div>
+
             <div className="col-md-8">
               {/* Main Score Display */}
               <div style={{ 
@@ -493,7 +545,7 @@ const Board = () => {
           {/* Current Batsman Quick View */}
           {currentPlayer && (
             <div 
-              key={`current-player-${currentPlayer.stats?.runs}-${currentPlayer.stats?.balls}`}
+              key={`current-player-header-${forceUpdateKey}-${currentPlayer.stats?.runs}-${currentPlayer.stats?.balls}-${currentPlayer.stats?.fours}-${currentPlayer.stats?.sixes}`}
               style={{
                 background: 'rgba(139, 92, 246, 0.1)',
                 border: '1px solid rgba(139, 92, 246, 0.3)',
@@ -677,6 +729,7 @@ const Board = () => {
                             ({calculateOvers(liveScore[innings].balls)} overs)
                           </div>
                         </div>
+
                         <div className="col-md-6">
                           <div className="row text-center">
                             <div className="col-3">
@@ -710,7 +763,7 @@ const Board = () => {
 
                     {/* Current Player Card - WITH FOURS AND SIXES COUNT */}
                     <div 
-                      key={`player-card-${currentPlayer.stats?.runs}-${currentPlayer.stats?.balls}`}
+                      key={`player-card-${forceUpdateKey}-${currentPlayer.stats?.runs}-${currentPlayer.stats?.balls}-${currentPlayer.stats?.fours}-${currentPlayer.stats?.sixes}`}
                       style={{
                         background: 'rgba(255, 255, 255, 0.05)',
                         borderRadius: '15px',
@@ -773,7 +826,6 @@ const Board = () => {
                       <h6 className="mb-3" style={{ color: '#fcb852' }}>
                         <i className="fas fa-calculator me-2"></i>Score Runs
                       </h6>
-
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '15px' }}>
                         {[0, 1, 2, 3, 4, 6].map(runs => (
                           <button
@@ -1026,6 +1078,7 @@ const Board = () => {
                     {/* Current Batsman - WITH HIGHLIGHTED FOURS AND SIXES */}
                     {currentInnings === inningsNum && currentPlayer && (
                       <div
+                        key={`current-player-sidebar-${forceUpdateKey}-${currentPlayer.stats?.runs}-${currentPlayer.stats?.balls}-${currentPlayer.stats?.fours}-${currentPlayer.stats?.sixes}`}
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1.2fr',

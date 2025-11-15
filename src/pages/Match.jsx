@@ -16,6 +16,10 @@ const Match = () => {
   const [coinResult, setCoinResult] = useState(null);
   const [tossResult, setTossResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  
+  // NEW: State for created match ID
+  const [createdMatchId, setCreatedMatchId] = useState(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // Fetch teams on mount
   useEffect(() => {
@@ -58,6 +62,7 @@ const Match = () => {
       setSelectedTeam1(null);
       setTossResult(null);
       setCoinResult(null);
+      setCreatedMatchId(null); // Reset match ID
       return;
     }
     
@@ -100,6 +105,7 @@ const Match = () => {
     setSelectedTeam1(normalizedTeam);
     setTossResult(null);
     setCoinResult(null);
+    setCreatedMatchId(null); // Reset match ID
   };
 
   const handleTeam2Select = (e) => {
@@ -113,6 +119,7 @@ const Match = () => {
       setSelectedTeam2(null);
       setTossResult(null);
       setCoinResult(null);
+      setCreatedMatchId(null); // Reset match ID
       return;
     }
     
@@ -155,6 +162,7 @@ const Match = () => {
     setSelectedTeam2(normalizedTeam);
     setTossResult(null);
     setCoinResult(null);
+    setCreatedMatchId(null); // Reset match ID
   };
 
   // ========================================
@@ -175,6 +183,7 @@ const Match = () => {
 
     setCoinFlipping(true);
     setTossResult(null);
+    setCreatedMatchId(null); // Reset match ID on new toss
 
     setTimeout(() => {
       const result = Math.random() < 0.5 ? 'heads' : 'tails';
@@ -208,11 +217,11 @@ const Match = () => {
   };
 
   // ========================================
-  // IMPROVED START MATCH WITH VALIDATION
+  // NEW: CREATE MATCH (without navigation)
   // ========================================
 
-  const startMatch = async () => {
-    console.log('🚀 Starting Match...');
+  const createMatch = async () => {
+    console.log('🚀 Creating Match...');
     
     if (!tossResult) {
       alert('Please complete the toss first');
@@ -283,21 +292,20 @@ const Match = () => {
       console.log('✅ Match Created Successfully:', response.data);
 
       if (response.data.success) {
-        const createdMatchId = response.data.match._id || response.data.matchId;
+        const matchId = response.data.match._id || response.data.matchId;
         
-        console.log('🎯 Navigating to match board:');
-        console.log('  - Match ID:', createdMatchId);
-        console.log('  - Navigation path:', `/board/${createdMatchId}`);
+        console.log('🎯 Match Created:');
+        console.log('  - Match ID:', matchId);
         
-        if (!createdMatchId) {
+        if (!matchId) {
           console.error('❌ No match ID in response!');
           console.error('  - Response data:', response.data);
           alert('Match created but ID is missing. Please check the match from dashboard.');
           return;
         }
         
-        alert('Match created successfully!');
-        navigate(`/board/${createdMatchId}`);
+        setCreatedMatchId(matchId);
+        alert('Match created successfully! Copy the Match ID and then click "Start Match".');
       }
     } catch (error) {
       console.error('❌ Create Match Error:', error);
@@ -310,6 +318,39 @@ const Match = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ========================================
+  // NEW: COPY MATCH ID FUNCTION
+  // ========================================
+
+  const copyMatchId = () => {
+    if (!createdMatchId) return;
+    
+    navigator.clipboard.writeText(createdMatchId).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy Match ID');
+    });
+  };
+
+  // ========================================
+  // NEW: START MATCH (navigate to board)
+  // ========================================
+
+  const startMatch = () => {
+    if (!createdMatchId) {
+      alert('Please create the match first');
+      return;
+    }
+    
+    console.log('🎯 Navigating to match board:');
+    console.log('  - Match ID:', createdMatchId);
+    console.log('  - Navigation path:', `/board/${createdMatchId}`);
+    
+    navigate(`/board/${createdMatchId}`);
   };
 
   return (
@@ -686,31 +727,131 @@ const Match = () => {
               </div>
             )}
 
-            {/* Start Match Button */}
+            {/* Create Match & Start Match Buttons */}
             {tossResult && (
               <div className="row mt-4">
-                <div className="col-12 text-center">
-                  <button 
-                    className="btn btn-warning btn-lg"
-                    onClick={startMatch}
-                    disabled={submitting}
-                    style={{
-                      minWidth: '200px',
-                      fontWeight: 'bold',
-                      animation: 'fadeIn 0.5s ease-in'
-                    }}
-                  >
-                    {submitting ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2"></span>
-                        Starting Match...
-                      </>
+                <div className="col-12">
+                  {/* Match ID Display Section */}
+                  {createdMatchId && (
+                    <div 
+                      className="alert alert-success text-center mb-4"
+                      style={{
+                        background: 'rgba(40, 167, 69, 0.2)',
+                        border: '2px solid rgba(40, 167, 69, 0.5)',
+                        animation: 'fadeIn 0.5s ease-in'
+                      }}
+                    >
+                      <div className="mb-3">
+                        <i className="fas fa-check-circle me-2" style={{ fontSize: '2rem', color: '#28a745' }}></i>
+                        <h5 style={{ color: '#28a745', marginTop: '10px' }}>Match Created Successfully!</h5>
+                      </div>
+                      
+                      <div 
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          padding: '15px',
+                          borderRadius: '10px',
+                          marginBottom: '15px'
+                        }}
+                      >
+                        <small className="text-muted d-block mb-2">MATCH ID</small>
+                        <div className="d-flex align-items-center justify-content-center gap-2">
+                          <code 
+                            style={{
+                              background: 'rgba(252, 184, 82, 0.2)',
+                              color: '#fcb852',
+                              padding: '10px 20px',
+                              borderRadius: '5px',
+                              fontSize: '1.1rem',
+                              fontWeight: 'bold',
+                              border: '1px solid rgba(252, 184, 82, 0.3)'
+                            }}
+                          >
+                            {createdMatchId}
+                          </code>
+                          <button
+                            className="btn btn-outline-warning btn-sm"
+                            onClick={copyMatchId}
+                            style={{ minWidth: '100px' }}
+                          >
+                            {copySuccess ? (
+                              <>
+                                <i className="fas fa-check me-2"></i>Copied!
+                              </>
+                            ) : (
+                              <>
+                                <i className="fas fa-copy me-2"></i>Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <small className="text-muted">
+                        <i className="fas fa-info-circle me-1"></i>
+                        Copy this Match ID for your records before starting the match
+                      </small>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="text-center">
+                    {!createdMatchId ? (
+                      // Create Match Button (Step 1)
+                      <button 
+                        className="btn btn-warning btn-lg"
+                        onClick={createMatch}
+                        disabled={submitting}
+                        style={{
+                          minWidth: '250px',
+                          fontWeight: 'bold',
+                          animation: 'fadeIn 0.5s ease-in'
+                        }}
+                      >
+                        {submitting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2"></span>
+                            Creating Match...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-plus-circle me-2"></i>Create Match
+                          </>
+                        )}
+                      </button>
                     ) : (
-                      <>
-                        <i className="fas fa-arrow-right me-2"></i>Start Match
-                      </>
+                      // Start Match Button (Step 2)
+                      <button 
+                        className="btn btn-success btn-lg"
+                        onClick={startMatch}
+                        style={{
+                          minWidth: '250px',
+                          fontWeight: 'bold',
+                          animation: 'fadeIn 0.5s ease-in'
+                        }}
+                      >
+                        <i className="fas fa-play-circle me-2"></i>Start Match
+                      </button>
                     )}
-                  </button>
+                  </div>
+
+                  {/* Helper Text */}
+                  {!createdMatchId && (
+                    <div className="text-center mt-3">
+                      <small className="text-muted">
+                        <i className="fas fa-lightbulb me-1"></i>
+                        Step 1: Create the match to get your Match ID
+                      </small>
+                    </div>
+                  )}
+                  {createdMatchId && (
+                    <div className="text-center mt-3">
+                      <small className="text-muted">
+                        <i className="fas fa-arrow-right me-1"></i>
+                        Step 2: Click "Start Match" to begin scoring
+                      </small>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
